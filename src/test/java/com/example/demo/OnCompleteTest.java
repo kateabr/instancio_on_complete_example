@@ -1,41 +1,47 @@
 package com.example.demo;
 
-import com.example.demo.entity.NestedEntityA;
-import com.example.demo.entity.TopLevelEntityA;
-import com.example.demo.entity.TopLevelEntityB;
-import com.example.demo.entity.NestedEntityB;
+import com.example.demo.entity.EntityA;
+import com.example.demo.entity.EntityB;
+import org.instancio.Instancio;
+import org.instancio.InstancioApi;
 import org.instancio.Model;
 import org.junit.jupiter.api.Test;
 
-import static com.example.demo.DataGenUtils.instancioApi;
-import static org.assertj.core.api.Assertions.*;
-import static org.instancio.Select.field;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertWith;
+import static org.instancio.Select.*;
 
 
 class OnCompleteTest {
 
-    private static final Model<TopLevelEntityA> TOP_LEVEL_ENTITY_A_MODEL_WITH_DESCENDANTS =
-            instancioApi(TopLevelEntityA.class)
-                    .generate(field(TopLevelEntityA::getNestedEntities), gen -> gen.map().size(1))
-                    .generate(field(NestedEntityA::getLeaves), gen -> gen.map().size(1))
-                    .toModel();
-    private static final Model<TopLevelEntityB> TOP_LEVEL_ENTITY_B_MODEL_WITH_DESCENDANTS =
-            instancioApi(TopLevelEntityB.class)
-                    .generate(field(TopLevelEntityB::getNestedEntities), gen -> gen.map().size(1))
-                    .generate(field(NestedEntityB::getMetadata), gen -> gen.map().size(1))
-                    .toModel();
+    public static final Model<EntityA> ENTITY_A_MODEL = Instancio.of(EntityA.class)
+            .ignore(field(EntityA::getProperty))
+            .onComplete(root(), (EntityA entity) -> entity.setProperty("something"))
+            .toModel();
+
+    public static final Model<EntityB> ENTITY_B_MODEL = Instancio.of(EntityB.class)
+            .ignore(field(EntityB::getProperty))
+            .onComplete(root(), (EntityB entity) -> entity.setProperty("something"))
+            .toModel();
+
+    private static <T> InstancioApi<T> instancioApi(Class<T> type) {
+        return Instancio.of(type)
+                .lenient()
+                .setModel(types().of(EntityA.class), ENTITY_A_MODEL)
+                .setModel(types().of(EntityB.class), ENTITY_B_MODEL);
+    }
 
     @Test
     void onCompleteTest() {
-        // has 1 element in the leaves field
+        // property initialized in the onComplete callback
         assertWith(
-                instancioApi(TOP_LEVEL_ENTITY_A_MODEL_WITH_DESCENDANTS).create(),
-                entity -> assertThat(entity.getLeaves()).hasSize(1));
+                instancioApi(EntityA.class).create(),
+                entity -> assertThat(entity.getProperty()).isNotEmpty());
 
-        // should also have 1 element in the leaves field, but has none
+        // property not initialized: onComplete callback was not invoked
         assertWith(
-                instancioApi(TOP_LEVEL_ENTITY_B_MODEL_WITH_DESCENDANTS).create(),
-                entity -> assertThat(entity.getLeaves()).isEmpty());
+                instancioApi(EntityB.class).create(),
+                entity -> assertThat(entity.getProperty()).isNull());
     }
 
 }
